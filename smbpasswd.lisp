@@ -30,40 +30,12 @@ STRING is smaller than 14 it would be 0x00 padded."
 	  (subseq string 0 +smb-lm-passwd-max-length+)
 	  (concatenate
 	   'string string
-	   (make-sequence 'string (- +smb-lm-passwd-max-length+ str-len)
-			  :initial-element (code-char 0))))))))
-  
-(defun %lm-integer-to-bit-vector (i)
+	   (make-sequence 'string (- +smb-lm-passwd-max-length+ str-len))))))))
 
-  ;; faster than (read-from-string (format nil "#*~(~8,'0b~)" i))
-
-  (make-array '(8) :element-type 'bit
-	      :initial-contents
-	      (loop for j from 7 downto 0
-		 collect (if (= (logand i (ash 1 j)) 0) 0 1))))
-(labels
-(defun %lm-byte-array-to-bit-array (byte-array)
-  (apply #'concatenate 'bit-vector
-	 (loop for i across byte-array
-	    collect (%lm-integer-to-bit-vector i))))
-
-(defun %lm-convert-7bit8 (byte-array &key (value 0))
-  ""
-  (let ((len (- (length byte-array) 1)))
-    (make-array 128 :element-type 'bit
-		:initial-contents
-		(loop for i across byte-array
-		   for idx = 0 then (+ 1 idx)
-		   if (and (= 0 (mod idx 7)) (> idx 0))
-		   collect value
-		   collect i
-		   if (= idx len)
-		   collect value))))
-
-(defun %lm-bit-array-to-int(bit-array)
-  (reduce #'(lambda (a b) (+ (ash a 1) b)) bit-array))
 
 (defun %lm-encrypt-magic-with-key (key)
+  "Encrypt +smb-lmhash-magic+ with DES cipher and ECB mode
+using KEY."
   (let ((ret (make-array '(8) :element-type '(unsigned-byte 8))))
     (ironclad:encrypt
      (ironclad:make-cipher :des :mode :ecb :key key)
