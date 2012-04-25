@@ -70,13 +70,18 @@ This is done by addingg a parity bit each 7 bits."
 (defun lm (string)
   "Hash STRING using deprecated Windows LM-hash."
   (let ((bya (%lm-string-to-byte-array string)))
+    ;; Join both +smb-lmhash-magic+ encrypted message and return a
+    ;; capitalized representation.
     (string-upcase
      (ironclad:byte-array-to-hex-string
       (concatenate 'vector
 		   (%lm-encrypt-magic-with-key
-		    (%lm-convert-byte-array-to-128bit (subseq bya 0 7)))
+		    (%lm-convert-byte-array-to-128bit
+		     (subseq bya 0 (/ +smb-lm-passwd-max-length+ 2))))
 		   (%lm-encrypt-magic-with-key
-		    (%lm-convert-byte-array-to-128bit (subseq bya 7 14))))))))
+		    (%lm-convert-byte-array-to-128bit
+		     (subseq bya  (/ +smb-lm-passwd-max-length+ 2)
+			     +smb-lm-passwd-max-length+))))))))
 
 ;;; "smbpasswd" goes here. Hacks and glory await!
 
