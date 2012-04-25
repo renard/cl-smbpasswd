@@ -45,19 +45,24 @@ using KEY."
 
 
 (defun %lm-convert-byte-array-to-128bit (byte-array)
-  ""
+  "Extend 112-bit array BYTE-ARRAY to a 128-bit byte array.
+
+This is done by addingg a parity bit each 7 bits."
+  (check-type byte-array (array * (7)))
   (make-array 8 :element-type '(unsigned-byte 8)
 	      :initial-contents
+	      ;; Bases upon py-smbpasswd
+	      ;; http://code.google.com/p/py-smbpasswd/source/browse/smbdes.c
 	      (loop for i below 8
 		 if (= 0 i)
 		 collect (logand (aref byte-array 0) #xFE)
 		 else if (= 7 i)
-		 collect (ash (logand #x7F (aref byte-array 6)) 1)
+		 collect (ash (logand #x7F (aref byte-array (1- i))) 1)
 		 else
 		 collect (ash
 			  (logior (ash (logand
-					(- (ash 1 i) 1)
-					(aref byte-array (- i 1)))
+					(1- (ash 1 i))
+					(aref byte-array (1- i)))
 				       (- 7 i))
 				  (ash (aref byte-array i) (- (- 1) i)))
 			  1))))
@@ -69,9 +74,9 @@ using KEY."
      (ironclad:byte-array-to-hex-string
       (concatenate 'vector
 		   (%lm-encrypt-magic-with-key
-		    (%lm-convert-byte-array-to-8bit (subseq bya 0 7)))
+		    (%lm-convert-byte-array-to-128bit (subseq bya 0 7)))
 		   (%lm-encrypt-magic-with-key
-		    (%lm-convert-byte-array-to-8bit (subseq bya 7 14))))))))
+		    (%lm-convert-byte-array-to-128bit (subseq bya 7 14))))))))
 
 ;;; "smbpasswd" goes here. Hacks and glory await!
 
