@@ -44,28 +44,43 @@ using KEY."
     ret))
 
 
-(defun %lm-convert-byte-array-to-128bit (byte-array)
-  "Extend 112-bit array BYTE-ARRAY to a 128-bit byte array.
 
-This is done by addingg a parity bit each 7 bits."
+(defun %lm-convert-byte-array-to-64bit (byte-array)
+  "Extend 56-bit byte array BYTE-ARRAY to a 64-bit byte array.
+
+This is done by adding a null padding bit each 7 bits.
+
+Example: convert a bit-array from:
+ #*10110010110110001100110100011010110101111011001101101110
+to (. stands for 0)
+ #*1011001.0110110.0011001.1010001.1010110.1011110.1100110.1101110.
+"
   (check-type byte-array (array * (7)))
-  (make-array 8 :element-type '(unsigned-byte 8)
-	      :initial-contents
-	      ;; Bases upon py-smbpasswd
-	      ;; http://code.google.com/p/py-smbpasswd/source/browse/smbdes.c
-	      (loop for i below 8
-		 if (= 0 i)
-		 collect (logand (aref byte-array 0) #xFE)
-		 else if (= 7 i)
-		 collect (ash (logand #x7F (aref byte-array (1- i))) 1)
-		 else
-		 collect (ash
-			  (logior (ash (logand
-					(1- (ash 1 i))
-					(aref byte-array (1- i)))
-				       (- 7 i))
-				  (ash (aref byte-array i) (- (- 1) i)))
-			  1))))
+  (let* ((array-length (length byte-array))
+	 ;; Fist convert the byte array to its numerical representation in
+	 ;; order to get a 56-bit array.  For every element of byte-array
+	 ;; shift left 8 *(length - position)
+	 ;; => (* 256^((length - position)))
+	 ;; and sum up the result
+	 (sum (loop for i below array-length
+		 summing (ash (elt byte-array i)
+			      (* 8 (- array-length i 1)))))
+	 (mask (byte 7 0)))
+
+    ;; Extract every blocks of 7-bit from `sum' and convert it to a 8-bit
+    ;; integer (shift left 1 bit == * 2).
+    ;; Block extraction is done by moving a 7-bit mask from left to right.
+    ;; return the result to its byte-array representation.
+    (make-array (1+ array-length) :element-type '(unsigned-byte 8)
+		:initial-contents
+		(loop for i from array-length downto 0
+		   collect
+		     (ash
+		      (ldb
+		       (ash mask (* 7 i)) ;; shift mask from left to right
+		       sum) ;; extract a 7-bit block from sum
+		      1)    ;; shift left the 7-bit block to create a 8-bit
+		     ))))   ;; block and insert the padding bit.
 
 (defun lm (string)
   "Hash STRING using deprecated Windows LM-hash."
@@ -76,7 +91,7 @@ This is done by addingg a parity bit each 7 bits."
      (ironclad:byte-array-to-hex-string
       (concatenate 'vector
 		   (%lm-encrypt-magic-with-key
-		    (%lm-convert-byte-array-to-128bit
+		    (%lm-convert-byte-array-to-64bit
 		     (subseq bya 0 (/ +smb-lm-passwd-max-length+ 2))))
 		   (%lm-encrypt-magic-with-key
 		    (%lm-convert-byte-array-to-128bit
